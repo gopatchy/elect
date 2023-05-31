@@ -36,3 +36,9 @@ linters:
     - thelper
     - varcheck
     - varnamelen
+linters-settings:
+  tagliatelle:
+    case:
+      use-field-name: true
+      rules:
+        json: goCamel
