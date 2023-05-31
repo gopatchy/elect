@@ -74,6 +74,7 @@ func (v *Voter) poll(update <-chan time.Duration, t *time.Ticker) bool {
 
 	if v.vote.NumPollsSinceChange < 10 {
 		t2 = time.NewTimer(100 * time.Millisecond)
+		defer t2.Stop()
 	}
 
 	select {
