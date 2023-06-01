@@ -1,10 +1,7 @@
 package elect
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"log"
 	"time"
 
@@ -19,12 +16,16 @@ type Voter struct {
 	update     chan<- time.Duration
 	done       <-chan bool
 	vote       vote
+	candidates []*Candidate
 }
 
 type vote struct {
 	VoterID             string `json:"voterID"`
 	LastSeenCandidateID string `json:"lastSeenCandidateID"`
 	NumPollsSinceChange int    `json:"numPollsSinceChange"`
+
+	// Used internally by Candidate
+	received time.Time
 }
 
 type voteResponse struct {
@@ -55,6 +56,10 @@ func NewVoter(url string, signingKey string) *Voter {
 func (v *Voter) Stop() {
 	close(v.update)
 	<-v.done
+}
+
+func (v *Voter) AddCandidate(c *Candidate) {
+	v.candidates = append(v.candidates, c)
 }
 
 func (v *Voter) loop(update <-chan time.Duration, done chan<- bool) {
@@ -96,26 +101,31 @@ func (v *Voter) poll(update <-chan time.Duration, t *time.Ticker) bool {
 }
 
 func (v *Voter) sendVote() {
+	for _, c := range v.candidates {
+		c.voteIfNo(&v.vote)
+	}
+
 	js := lo.Must(json.Marshal(v.vote))
-
-	genMAC := hmac.New(sha256.New, v.signingKey)
-	genMAC.Write(js)
-	mac := fmt.Sprintf("%x", genMAC.Sum(nil))
-
 	vr := &voteResponse{}
 
 	resp, err := v.client.R().
-		SetHeader("Signature", mac).
+		SetHeader("Signature", mac(js, v.signingKey)).
 		SetBody(js).
 		SetResult(vr).
-		Post("_vote")
+		Post("")
 	if err != nil {
-		log.Printf("_vote response: %s", err)
+		log.Printf("vote response: %s", err)
+
+		v.vote.NumPollsSinceChange = 0
+
 		return
 	}
 
 	if resp.IsError() {
-		log.Printf("_vote response: [%d] %s\n%s", resp.StatusCode(), resp.Status(), resp.String())
+		log.Printf("vote response: [%d] %s\n%s", resp.StatusCode(), resp.Status(), resp.String())
+
+		v.vote.NumPollsSinceChange = 0
+
 		return
 	}
 
