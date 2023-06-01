@@ -23,6 +23,7 @@ type vote struct {
 	VoterID             string `json:"voterID"`
 	LastSeenCandidateID string `json:"lastSeenCandidateID"`
 	NumPollsSinceChange int    `json:"numPollsSinceChange"`
+	// TODO: Add timestamp
 
 	// Used internally by Candidate
 	received time.Time
@@ -30,6 +31,7 @@ type vote struct {
 
 type voteResponse struct {
 	CandidateID string `json:"candidateID"`
+	// TODO: Add timestamp
 }
 
 func NewVoter(url string, signingKey string) *Voter {
@@ -63,6 +65,7 @@ func (v *Voter) AddCandidate(c *Candidate) {
 }
 
 func (v *Voter) loop(update <-chan time.Duration, done chan<- bool) {
+	// TODO: Need a JitterTicker
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
 	defer close(done)
@@ -77,7 +80,7 @@ func (v *Voter) loop(update <-chan time.Duration, done chan<- bool) {
 func (v *Voter) poll(update <-chan time.Duration, t *time.Ticker) bool {
 	t2 := &time.Timer{}
 
-	if v.vote.NumPollsSinceChange < 11 {
+	if v.vote.NumPollsSinceChange <= 10 {
 		t2 = time.NewTimer(100 * time.Millisecond)
 		defer t2.Stop()
 	}

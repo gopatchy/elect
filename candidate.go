@@ -142,6 +142,7 @@ func (c *Candidate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	// TODO: Sign responses
 
 	enc := json.NewEncoder(w)
 
