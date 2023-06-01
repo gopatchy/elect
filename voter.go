@@ -77,7 +77,7 @@ func (v *Voter) loop(update <-chan time.Duration, done chan<- bool) {
 func (v *Voter) poll(update <-chan time.Duration, t *time.Ticker) bool {
 	t2 := &time.Timer{}
 
-	if v.vote.NumPollsSinceChange < 10 {
+	if v.vote.NumPollsSinceChange < 11 {
 		t2 = time.NewTimer(100 * time.Millisecond)
 		defer t2.Stop()
 	}
@@ -110,6 +110,7 @@ func (v *Voter) sendVote() {
 
 	resp, err := v.client.R().
 		SetHeader("Signature", mac(js, v.signingKey)).
+		SetHeader("Content-Type", "application/json").
 		SetBody(js).
 		SetResult(vr).
 		Post("")

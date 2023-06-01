@@ -71,6 +71,10 @@ func (c *Candidate) State() CandidateState {
 	return c.state
 }
 
+func (c *Candidate) IsLeader() bool {
+	return c.State() == StateLeader
+}
+
 func (c *Candidate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(
@@ -136,6 +140,8 @@ func (c *Candidate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
 
 	enc := json.NewEncoder(w)
 
