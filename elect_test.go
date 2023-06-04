@@ -2,41 +2,31 @@ package elect_test
 
 import (
 	"fmt"
-	"net"
-	"net/http"
 	"testing"
 	"time"
 
+	"github.com/dchest/uniuri"
 	"github.com/gopatchy/elect"
+	"github.com/gopatchy/proxy"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSimple(t *testing.T) {
 	t.Parallel()
 
-	c := elect.NewCandidate(1, "abc123")
+	signingKey := uniuri.New()
 
-	defer c.Stop()
+	ts := NewTestServer(t, signingKey)
+	defer ts.Stop()
 
-	listener, err := net.ListenTCP("tcp", nil)
-	require.NoError(t, err)
+	p := lo.Must(proxy.NewProxy(t, ts.Addr()))
+	defer p.Close()
 
-	srv := &http.Server{
-		Handler:           c,
-		ReadHeaderTimeout: 30 * time.Second,
-	}
+	url := fmt.Sprintf("http://%s/", p.Addr())
 
-	go func() {
-		err := srv.Serve(listener)
-		require.ErrorIs(t, err, http.ErrServerClosed)
-	}()
-
-	defer srv.Close()
-
-	v := elect.NewVoter(fmt.Sprintf("http://%s/", listener.Addr()), "abc123")
-	require.NotNil(t, v)
-
+	v := elect.NewVoter(url, signingKey)
 	defer v.Stop()
 
-	require.Eventually(t, c.IsLeader, 15*time.Second, 100*time.Millisecond)
+	require.Eventually(t, ts.Candidate.IsLeader, 15*time.Second, 100*time.Millisecond)
 }
