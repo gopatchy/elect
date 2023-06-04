@@ -21,18 +21,18 @@ type Voter struct {
 }
 
 type vote struct {
-	VoterID             string `json:"voterID"`
-	LastSeenCandidateID string `json:"lastSeenCandidateID"`
-	NumPollsSinceChange int    `json:"numPollsSinceChange"`
-	// TODO: Add timestamp
+	VoterID             string    `json:"voterID"`
+	LastSeenCandidateID string    `json:"lastSeenCandidateID"`
+	NumPollsSinceChange int       `json:"numPollsSinceChange"`
+	VoteSent            time.Time `json:"voteSent"`
 
 	// Used internally by Candidate
 	received time.Time
 }
 
 type voteResponse struct {
-	CandidateID string `json:"candidateID"`
-	// TODO: Add timestamp
+	CandidateID  string    `json:"candidateID"`
+	ResponseSent time.Time `json:"responseSent"`
 }
 
 func NewVoter(url string, signingKey string) *Voter {
@@ -105,6 +105,8 @@ func (v *Voter) poll(update <-chan time.Duration, t *time.Ticker) bool {
 }
 
 func (v *Voter) sendVote() {
+	v.vote.VoteSent = time.Now().UTC()
+
 	for _, c := range v.candidates {
 		c.voteIfNo(&v.vote)
 	}
@@ -150,6 +152,10 @@ func (v *Voter) sendVote() {
 	if err != nil {
 		v.log("invalid response: %s", resp.String())
 		return
+	}
+
+	if time.Since(vr.ResponseSent).Abs() > 15*time.Second {
+		v.log("excessive time difference (%.1f seconds); delay, replay, or clock skew", time.Since(vr.ResponseSent).Seconds())
 	}
 
 	if vr.CandidateID == v.vote.LastSeenCandidateID {

@@ -142,6 +142,16 @@ func (c *Candidate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if time.Since(v.VoteSent).Abs() > 15*time.Second {
+		http.Error(
+			w,
+			fmt.Sprintf("excessive time difference (%.1f seconds); delay, replay, or clock skew", time.Since(v.VoteSent).Seconds()),
+			http.StatusBadRequest,
+		)
+	}
+
+	c.resp.ResponseSent = time.Now().UTC()
+
 	js = lo.Must(json.Marshal(c.resp))
 
 	w.Header().Set("Content-Type", "application/json")
