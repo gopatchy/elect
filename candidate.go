@@ -20,8 +20,8 @@ type Candidate struct {
 
 	numVoters  int
 	signingKey []byte
-	stop       chan<- bool
-	done       <-chan bool
+	stop       chan bool
+	done       chan bool
 	resp       voteResponse
 	c          chan<- CandidateState
 
@@ -38,8 +38,6 @@ var (
 )
 
 func NewCandidate(numVoters int, signingKey string) *Candidate {
-	stop := make(chan bool)
-	done := make(chan bool)
 	change := make(chan CandidateState, 100)
 
 	c := &Candidate{
@@ -47,15 +45,15 @@ func NewCandidate(numVoters int, signingKey string) *Candidate {
 		numVoters:  numVoters,
 		signingKey: []byte(signingKey),
 		votes:      map[string]*vote{},
-		stop:       stop,
-		done:       done,
+		stop:       make(chan bool),
+		done:       make(chan bool),
 		c:          change,
 		resp: voteResponse{
 			CandidateID: uniuri.New(),
 		},
 	}
 
-	go c.loop(stop, done)
+	go c.loop()
 
 	return c
 }
@@ -237,14 +235,14 @@ func (c *Candidate) update(state CandidateState) {
 	c.c <- state
 }
 
-func (c *Candidate) loop(stop <-chan bool, done chan<- bool) {
+func (c *Candidate) loop() {
 	t := time.NewTicker(1 * time.Second)
 	defer t.Stop()
-	defer close(done)
+	defer close(c.done)
 
 	for {
 		select {
-		case <-stop:
+		case <-c.stop:
 			return
 
 		case <-t.C:

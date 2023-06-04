@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"encoding/json"
 	"log"
+	"math/rand"
 	"time"
 
 	"github.com/dchest/uniuri"
@@ -12,12 +13,16 @@ import (
 )
 
 type Voter struct {
+	// used by user and loop() goroutines
+	update chan time.Duration
+	done   chan bool
+
+	// used by loop() goroutine only
 	client     *resty.Client
 	signingKey []byte
-	update     chan<- time.Duration
-	done       <-chan bool
 	vote       vote
 	candidates []*Candidate
+	period     time.Duration
 }
 
 type vote struct {
@@ -36,22 +41,20 @@ type voteResponse struct {
 }
 
 func NewVoter(url string, signingKey string) *Voter {
-	update := make(chan time.Duration)
-	done := make(chan bool)
-
 	v := &Voter{
 		client: resty.New().
 			SetCloseConnection(true).
 			SetBaseURL(url),
 		signingKey: []byte(signingKey),
-		update:     update,
-		done:       done,
+		update:     make(chan time.Duration),
+		done:       make(chan bool),
 		vote: vote{
 			VoterID: uniuri.New(),
 		},
+		period: 5 * time.Second,
 	}
 
-	go v.loop(update, done)
+	go v.loop()
 
 	return v
 }
@@ -65,40 +68,42 @@ func (v *Voter) AddCandidate(c *Candidate) {
 	v.candidates = append(v.candidates, c)
 }
 
-func (v *Voter) loop(update <-chan time.Duration, done chan<- bool) {
-	// TODO: Need a JitterTicker
-	t := time.NewTicker(5 * time.Second)
-	defer t.Stop()
-	defer close(done)
+func (v *Voter) loop() {
+	defer close(v.done)
 
 	for {
-		if !v.poll(update, t) {
+		if !v.poll() {
 			break
 		}
 	}
 }
 
-func (v *Voter) poll(update <-chan time.Duration, t *time.Ticker) bool {
+func (v *Voter) poll() bool {
+	// mean: v.period, max: v.period*2
+	t := time.NewTimer(randDurationN(v.period * 2))
+	defer t.Stop()
+
 	t2 := &time.Timer{}
 
 	if v.vote.NumPollsSinceChange <= 10 {
-		t2 = time.NewTimer(100 * time.Millisecond)
+		// mean: 100ms, max: 200ms
+		t2 = time.NewTimer(randDurationN(100 * time.Millisecond * 2))
 		defer t2.Stop()
 	}
 
 	select {
-	case <-t2.C:
-		v.sendVote()
-
 	case <-t.C:
 		v.sendVote()
 
-	case period, ok := <-update:
+	case <-t2.C:
+		v.sendVote()
+
+	case period, ok := <-v.update:
 		if !ok {
 			return false
 		}
 
-		t.Reset(period)
+		v.period = period
 	}
 
 	return true
@@ -168,4 +173,8 @@ func (v *Voter) sendVote() {
 
 func (v *Voter) log(format string, args ...any) {
 	log.Printf("[voter] "+format, args...)
+}
+
+func randDurationN(n time.Duration) time.Duration {
+	return time.Duration(rand.Int63n(int64(n))) //nolint:gosec
 }
