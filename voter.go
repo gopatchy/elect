@@ -52,7 +52,7 @@ func NewVoter(url string, signingKey string, candidate *Candidate) *Voter {
 		vote: vote{
 			VoterID: uniuri.New(),
 		},
-		period: 5 * time.Second,
+		period: maxVotePeriod,
 	}
 
 	go v.loop()
@@ -82,8 +82,7 @@ func (v *Voter) poll() bool {
 	t2 := &time.Timer{}
 
 	if v.vote.NumPollsSinceChange <= 10 {
-		// mean: 100ms, max: 200ms
-		t2 = time.NewTimer(randDurationN(100 * time.Millisecond))
+		t2 = time.NewTimer(randDurationN(maxFastVotePeriod))
 		defer t2.Stop()
 	}
 

@@ -23,9 +23,10 @@ type Candidate struct {
 	resp       voteResponse
 	c          chan<- CandidateState
 
-	votes map[string]*vote
-	state CandidateState
-	mu    sync.Mutex
+	votes    map[string]*vote
+	state    CandidateState
+	firstYes time.Time
+	mu       sync.Mutex
 }
 
 type CandidateState string
@@ -33,6 +34,14 @@ type CandidateState string
 var (
 	StateLeader    CandidateState = "LEADER"
 	StateNotLeader CandidateState = "NOT_LEADER"
+)
+
+const (
+	maxVotePeriod  = 5 * time.Second
+	voteTimeout    = 10 * time.Second
+	leadershipWait = 15 * time.Second
+
+	maxFastVotePeriod = 100 * time.Millisecond
 )
 
 func NewCandidate(numVoters int, signingKey string) *Candidate {
@@ -200,30 +209,47 @@ func (c *Candidate) elect() {
 	no := 0
 	yes := 0
 
-	cutoff := time.Now().Add(-10 * time.Second)
-
 	for key, vote := range c.votes {
-		if vote.received.Before(cutoff) {
+		if time.Since(vote.received) > voteTimeout {
+			// Remove stale vote from consideration
 			delete(c.votes, key)
 			continue
 		}
 
 		if vote.LastSeenCandidateID != c.resp.CandidateID {
+			// Hard no; voted for someone else
 			no++
 		}
 
 		if vote.NumPollsSinceChange < 10 {
+			// Soft no; voted for us but not enough times in a row
 			continue
 		}
 
 		yes++
 	}
 
-	if no == 0 && yes > c.numVoters/2 {
-		c.update(StateLeader)
-	} else {
+	if no > 0 || yes <= c.numVoters/2 {
+		// We lost the vote
+		c.firstYes = time.Time{}
 		c.update(StateNotLeader)
+
+		return
 	}
+
+	if c.firstYes.IsZero() {
+		// First round of "yes" voting since the last "no" vote
+		c.firstYes = time.Now()
+	}
+
+	if time.Since(c.firstYes) < leadershipWait {
+		// Not enough time in "yes" state
+		c.update(StateNotLeader)
+		return
+	}
+
+	// All checks passed
+	c.update(StateLeader)
 }
 
 func (c *Candidate) update(state CandidateState) {
