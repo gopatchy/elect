@@ -79,15 +79,14 @@ func (v *Voter) loop() {
 }
 
 func (v *Voter) poll() bool {
-	// mean: v.period, max: v.period*2
-	t := time.NewTimer(randDurationN(v.period * 2))
+	t := time.NewTimer(randDurationN(v.period))
 	defer t.Stop()
 
 	t2 := &time.Timer{}
 
 	if v.vote.NumPollsSinceChange <= 10 {
 		// mean: 100ms, max: 200ms
-		t2 = time.NewTimer(randDurationN(100 * time.Millisecond * 2))
+		t2 = time.NewTimer(randDurationN(100 * time.Millisecond))
 		defer t2.Stop()
 	}
 
