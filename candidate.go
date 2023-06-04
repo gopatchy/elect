@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dchest/uniuri"
+	"github.com/samber/lo"
 )
 
 // TODO: Ensure promotion takes longer than demotion
@@ -141,12 +142,12 @@ func (c *Candidate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	js = lo.Must(json.Marshal(c.resp))
+
 	w.Header().Set("Content-Type", "application/json")
-	// TODO: Sign responses
+	w.Header().Set("Signature", mac(js, c.signingKey))
 
-	enc := json.NewEncoder(w)
-
-	err = enc.Encode(c.resp)
+	_, err = w.Write(js)
 	if err != nil {
 		http.Error(
 			w,

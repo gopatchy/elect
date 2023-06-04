@@ -1,6 +1,7 @@
 package elect
 
 import (
+	"crypto/hmac"
 	"encoding/json"
 	"log"
 	"time"
@@ -109,13 +110,12 @@ func (v *Voter) sendVote() {
 	}
 
 	js := lo.Must(json.Marshal(v.vote))
-	vr := &voteResponse{}
 
 	resp, err := v.client.R().
 		SetHeader("Signature", mac(js, v.signingKey)).
 		SetHeader("Content-Type", "application/json").
+		SetHeader("Accept", "application/json").
 		SetBody(js).
-		SetResult(vr).
 		Post("")
 	if err != nil {
 		log.Printf("vote response: %s", err)
@@ -126,10 +126,29 @@ func (v *Voter) sendVote() {
 	}
 
 	if resp.IsError() {
-		log.Printf("vote response: [%d] %s\n%s", resp.StatusCode(), resp.Status(), resp.String())
+		v.log("response: [%d] %s\n%s", resp.StatusCode(), resp.Status(), resp.String())
 
 		v.vote.NumPollsSinceChange = 0
 
+		return
+	}
+
+	sig := resp.Header().Get("Signature")
+	if sig == "" {
+		v.log("missing Signature response header")
+		return
+	}
+
+	if !hmac.Equal([]byte(sig), []byte(mac(resp.Body(), v.signingKey))) {
+		v.log("invalid Signature response header")
+		return
+	}
+
+	vr := &voteResponse{}
+
+	err = json.Unmarshal(resp.Body(), vr)
+	if err != nil {
+		v.log("invalid response: %s", resp.String())
 		return
 	}
 
@@ -139,4 +158,8 @@ func (v *Voter) sendVote() {
 		v.vote.LastSeenCandidateID = vr.CandidateID
 		v.vote.NumPollsSinceChange = 0
 	}
+}
+
+func (v *Voter) log(format string, args ...any) {
+	log.Printf("[voter] "+format, args...)
 }
