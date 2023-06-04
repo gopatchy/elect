@@ -20,8 +20,8 @@ type Voter struct {
 	// used by loop() goroutine only
 	client     *resty.Client
 	signingKey []byte
+	candidate  *Candidate
 	vote       vote
-	candidates []*Candidate
 	period     time.Duration
 }
 
@@ -40,12 +40,13 @@ type voteResponse struct {
 	ResponseSent time.Time `json:"responseSent"`
 }
 
-func NewVoter(url string, signingKey string) *Voter {
+func NewVoter(url string, signingKey string, candidate *Candidate) *Voter {
 	v := &Voter{
 		client: resty.New().
 			SetCloseConnection(true).
 			SetBaseURL(url),
 		signingKey: []byte(signingKey),
+		candidate:  candidate,
 		update:     make(chan time.Duration),
 		done:       make(chan bool),
 		vote: vote{
@@ -62,10 +63,6 @@ func NewVoter(url string, signingKey string) *Voter {
 func (v *Voter) Stop() {
 	close(v.update)
 	<-v.done
-}
-
-func (v *Voter) AddCandidate(c *Candidate) {
-	v.candidates = append(v.candidates, c)
 }
 
 func (v *Voter) loop() {
@@ -111,9 +108,7 @@ func (v *Voter) poll() bool {
 func (v *Voter) sendVote() {
 	v.vote.VoteSent = time.Now().UTC()
 
-	for _, c := range v.candidates {
-		c.voteIfNo(&v.vote)
-	}
+	v.candidate.voteIfNo(&v.vote)
 
 	js := lo.Must(json.Marshal(v.vote))
 
