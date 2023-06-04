@@ -13,8 +13,6 @@ import (
 	"github.com/samber/lo"
 )
 
-// TODO: Ensure promotion takes longer than demotion
-
 type Candidate struct {
 	C <-chan CandidateState
 
@@ -59,6 +57,8 @@ func NewCandidate(numVoters int, signingKey string) *Candidate {
 }
 
 func (c *Candidate) Stop() {
+	// Lock not required
+
 	close(c.stop)
 	<-c.done
 }
@@ -71,10 +71,15 @@ func (c *Candidate) State() CandidateState {
 }
 
 func (c *Candidate) IsLeader() bool {
+	// Lock not required
+
 	return c.State() == StateLeader
 }
 
 func (c *Candidate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if r.Method != http.MethodPost {
 		http.Error(
 			w,
@@ -169,33 +174,33 @@ func (c *Candidate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.vote(v)
 }
 
-func (c *Candidate) vote(v *vote) {
-	v.received = time.Now()
+func (c *Candidate) VoteIfNo(v vote) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	{
-		c.mu.Lock()
-		c.votes[v.VoterID] = v
-		c.mu.Unlock()
-	}
-
-	c.elect()
-}
-
-func (c *Candidate) voteIfNo(v *vote) {
 	if v.LastSeenCandidateID == c.resp.CandidateID {
 		return
 	}
 
-	c.vote(v)
+	c.vote(&v)
+}
+
+func (c *Candidate) vote(v *vote) {
+	// Must hold lock to call
+
+	v.received = time.Now()
+	c.votes[v.VoterID] = v
+
+	c.elect()
 }
 
 func (c *Candidate) elect() {
+	// Must hold lock to call
+
 	no := 0
 	yes := 0
 
 	cutoff := time.Now().Add(-10 * time.Second)
-
-	c.mu.Lock() /////////////
 
 	for key, vote := range c.votes {
 		if vote.received.Before(cutoff) {
@@ -214,8 +219,6 @@ func (c *Candidate) elect() {
 		yes++
 	}
 
-	c.mu.Unlock() ////////////
-
 	if no == 0 && yes > c.numVoters/2 {
 		c.update(StateLeader)
 	} else {
@@ -224,8 +227,7 @@ func (c *Candidate) elect() {
 }
 
 func (c *Candidate) update(state CandidateState) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	// Must hold lock to call
 
 	if c.state == state {
 		return
@@ -236,6 +238,8 @@ func (c *Candidate) update(state CandidateState) {
 }
 
 func (c *Candidate) loop() {
+	// Lock not required
+
 	t := time.NewTicker(1 * time.Second)
 	defer t.Stop()
 	defer close(c.done)
@@ -246,7 +250,14 @@ func (c *Candidate) loop() {
 			return
 
 		case <-t.C:
-			c.elect()
+			c.lockElect()
 		}
 	}
+}
+
+func (c *Candidate) lockElect() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.elect()
 }

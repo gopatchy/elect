@@ -88,6 +88,10 @@ func (ts *TestSystem) Stop() {
 	ts.proxy.Close()
 }
 
+func (ts *TestSystem) SetServer(i int) {
+	ts.proxy.SetBackend(ts.Server(i).Addr())
+}
+
 func (ts *TestSystem) Server(i int) *TestServer {
 	return ts.servers[i]
 }

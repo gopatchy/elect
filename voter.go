@@ -108,7 +108,7 @@ func (v *Voter) poll() bool {
 func (v *Voter) sendVote() {
 	v.vote.VoteSent = time.Now().UTC()
 
-	v.candidate.voteIfNo(&v.vote)
+	v.candidate.VoteIfNo(v.vote)
 
 	js := lo.Must(json.Marshal(v.vote))
 

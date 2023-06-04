@@ -42,3 +42,5 @@ linters-settings:
       use-field-name: true
       rules:
         json: goCamel
+  wsl:
+    allow-separated-leading-comment: true
