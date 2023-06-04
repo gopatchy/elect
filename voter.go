@@ -61,8 +61,13 @@ func NewVoter(url string, signingKey string, candidate *Candidate) *Voter {
 }
 
 func (v *Voter) Stop() {
+	if v.update == nil {
+		return
+	}
+
 	close(v.update)
 	<-v.done
+	v.update = nil
 }
 
 func (v *Voter) loop() {
