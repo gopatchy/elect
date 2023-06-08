@@ -63,10 +63,7 @@ func NewTestSystem(t *testing.T, num int) *TestSystem {
 	for i := 0; i < num; i++ {
 		ts.servers = append(ts.servers, NewTestServer(t, ts.signingKey))
 		ts.proxies = append(ts.proxies, proxy.NewProxy(t, ts.Server(0).Addr()))
-		ts.voters = append(ts.voters, elect.NewVoter(ts.Proxy(i).HTTP(), ts.signingKey, ts.Candidate(i)))
-	}
-
-	for i := 0; i < num; i++ {
+		ts.voters = append(ts.voters, elect.NewVoter(ts.Proxy(i).HTTP(), ts.signingKey))
 	}
 
 	return ts

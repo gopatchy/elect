@@ -66,7 +66,7 @@ func TestPartialVotes(t *testing.T) {
 	ts := NewTestSystem(t, 3)
 	defer ts.Stop()
 
-	ts.Voter(0).Stop()
+	ts.Proxy(0).SetRefuse(true)
 
 	require.False(t, ts.Candidate(0).IsLeader())
 	require.False(t, ts.Candidate(1).IsLeader())
