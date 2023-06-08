@@ -1,7 +1,6 @@
 package elect_test
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"testing"
@@ -25,7 +24,7 @@ type TestSystem struct {
 	signingKey string
 	servers    []*TestServer
 	voters     []*elect.Voter
-	proxy      *proxy.Proxy
+	proxies    []*proxy.Proxy
 }
 
 func NewTestServer(t *testing.T, signingKey string) *TestServer {
@@ -63,14 +62,11 @@ func NewTestSystem(t *testing.T, num int) *TestSystem {
 
 	for i := 0; i < num; i++ {
 		ts.servers = append(ts.servers, NewTestServer(t, ts.signingKey))
+		ts.proxies = append(ts.proxies, proxy.NewProxy(t, ts.Server(0).Addr()))
+		ts.voters = append(ts.voters, elect.NewVoter(ts.Proxy(i).HTTP(), ts.signingKey, ts.Candidate(i)))
 	}
 
-	ts.proxy = lo.Must(proxy.NewProxy(t, ts.Server(0).Addr()))
-
-	url := fmt.Sprintf("http://%s/", ts.proxy.Addr())
-
 	for i := 0; i < num; i++ {
-		ts.voters = append(ts.voters, elect.NewVoter(url, ts.signingKey, ts.Candidate(i)))
 	}
 
 	return ts
@@ -85,19 +81,27 @@ func (ts *TestSystem) Stop() {
 		v.Stop()
 	}
 
-	ts.proxy.Close()
+	for _, p := range ts.proxies {
+		p.Close()
+	}
 }
 
 func (ts *TestSystem) SetServer(i int) {
-	ts.proxy.SetBackend(ts.Server(i).Addr())
-}
-
-func (ts *TestSystem) Server(i int) *TestServer {
-	return ts.servers[i]
+	for _, p := range ts.proxies {
+		p.SetBackend(ts.Server(i).Addr())
+	}
 }
 
 func (ts *TestSystem) Candidate(i int) *elect.Candidate {
 	return ts.servers[i].Candidate
+}
+
+func (ts *TestSystem) Proxy(i int) *proxy.Proxy {
+	return ts.proxies[i]
+}
+
+func (ts *TestSystem) Server(i int) *TestServer {
+	return ts.servers[i]
 }
 
 func (ts *TestSystem) Voter(i int) *elect.Voter {
