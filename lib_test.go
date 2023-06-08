@@ -27,9 +27,13 @@ type TestSystem struct {
 	proxies    []*proxy.Proxy
 }
 
-func NewTestServer(t *testing.T, signingKey string) *TestServer {
+type Waiter struct {
+	chans []<-chan bool
+}
+
+func NewTestServer(t *testing.T, numVoters int, signingKey string) *TestServer {
 	ts := &TestServer{
-		Candidate: elect.NewCandidate(1, signingKey),
+		Candidate: elect.NewCandidate(numVoters, signingKey),
 		listener:  lo.Must(net.ListenTCP("tcp", nil)),
 	}
 
@@ -55,13 +59,16 @@ func (ts *TestServer) Addr() *net.TCPAddr {
 	return ts.listener.Addr().(*net.TCPAddr)
 }
 
-func NewTestSystem(t *testing.T, num int) *TestSystem {
+func NewTestSystem(t *testing.T, numCandidates, numVoters int) *TestSystem {
 	ts := &TestSystem{
 		signingKey: uniuri.New(),
 	}
 
-	for i := 0; i < num; i++ {
-		ts.servers = append(ts.servers, NewTestServer(t, ts.signingKey))
+	for i := 0; i < numCandidates; i++ {
+		ts.servers = append(ts.servers, NewTestServer(t, numVoters, ts.signingKey))
+	}
+
+	for i := 0; i < numVoters; i++ {
 		ts.proxies = append(ts.proxies, proxy.NewProxy(t, ts.Server(0).Addr()))
 		ts.voters = append(ts.voters, elect.NewVoter(ts.Proxy(i).HTTP(), ts.signingKey))
 	}
@@ -83,10 +90,14 @@ func (ts *TestSystem) Stop() {
 	}
 }
 
-func (ts *TestSystem) SetServer(i int) {
+func (ts *TestSystem) SetServer(server int) {
 	for _, p := range ts.proxies {
-		p.SetBackend(ts.Server(i).Addr())
+		p.SetBackend(ts.Server(server).Addr())
 	}
+}
+
+func (ts *TestSystem) SetServerForVoter(server, voter int) {
+	ts.Proxy(voter).SetBackend(ts.Server(server).Addr())
 }
 
 func (ts *TestSystem) Candidate(i int) *elect.Candidate {
@@ -103,4 +114,24 @@ func (ts *TestSystem) Server(i int) *TestServer {
 
 func (ts *TestSystem) Voter(i int) *elect.Voter {
 	return ts.voters[i]
+}
+
+func NewWaiter() *Waiter {
+	return &Waiter{}
+}
+
+func (w *Waiter) Wait() {
+	for _, ch := range w.chans {
+		<-ch
+	}
+}
+
+func (w *Waiter) Async(cb func()) {
+	ch := make(chan bool)
+	w.chans = append(w.chans, ch)
+
+	go func() {
+		defer close(ch)
+		cb()
+	}()
 }

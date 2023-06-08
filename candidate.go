@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -34,15 +35,18 @@ type CandidateState int
 const (
 	StateLeader CandidateState = iota
 	StateNotLeader
-)
 
-const (
 	maxVotePeriod  = 5 * time.Second
 	voteTimeout    = 10 * time.Second
 	leadershipWait = 15 * time.Second
 
 	maxFastVotePeriod = 100 * time.Millisecond
 )
+
+var StateName = map[CandidateState]string{
+	StateLeader:    "LEADER",
+	StateNotLeader: "NOT_LEADER",
+}
 
 func NewCandidate(numVoters int, signingKey string) *Candidate {
 	change := make(chan CandidateState, 100)
@@ -182,11 +186,22 @@ func (c *Candidate) elect(v *vote) {
 	defer c.mu.Unlock()
 
 	state := StateNotLeader
+	no := 0
+	yes := 0
 
 	defer func() {
 		if c.state == state {
 			return
 		}
+
+		log.Printf(
+			"[elect] transitioning %s -> %s (no=%d yes=%d min_yes=%d)",
+			StateName[c.state],
+			StateName[state],
+			no,
+			yes,
+			c.numVoters/2+1,
+		)
 
 		c.state = state
 		c.c <- state
@@ -196,9 +211,6 @@ func (c *Candidate) elect(v *vote) {
 		v.received = time.Now()
 		c.votes[v.VoterID] = v
 	}
-
-	no := 0
-	yes := 0
 
 	for key, vote := range c.votes {
 		if time.Since(vote.received) > voteTimeout {
@@ -220,7 +232,7 @@ func (c *Candidate) elect(v *vote) {
 		yes++
 	}
 
-	if no > 0 || yes <= c.numVoters/2 {
+	if no > 0 || yes < c.numVoters/2+1 {
 		// We lost the vote
 		c.firstYes = time.Time{}
 		state = StateNotLeader
