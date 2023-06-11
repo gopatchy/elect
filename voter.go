@@ -4,7 +4,6 @@ import (
 	"crypto/hmac"
 	"encoding/json"
 	"log"
-	"math/rand"
 	"time"
 
 	"github.com/dchest/uniuri"
@@ -79,13 +78,13 @@ func (v *Voter) loop() {
 }
 
 func (v *Voter) poll() bool {
-	t := time.NewTimer(randDurationN(v.period))
+	t := time.NewTimer(RandDurationN(v.period))
 	defer t.Stop()
 
 	t2 := &time.Timer{}
 
 	if v.vote.NumPollsSinceChange <= 10 {
-		t2 = time.NewTimer(randDurationN(maxFastVotePeriod))
+		t2 = time.NewTimer(RandDurationN(maxFastVotePeriod))
 		defer t2.Stop()
 	}
 
@@ -167,8 +166,4 @@ func (v *Voter) sendVote() {
 
 func (v *Voter) log(format string, args ...any) {
 	log.Printf("[voter] "+format, args...)
-}
-
-func randDurationN(n time.Duration) time.Duration {
-	return time.Duration(rand.Int63n(int64(n))) //nolint:gosec
 }
