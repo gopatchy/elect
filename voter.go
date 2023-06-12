@@ -2,9 +2,6 @@ package elect
 
 import (
 	"crypto/hmac"
-	"crypto/tls"
-	"crypto/x509"
-	_ "embed"
 	"encoding/json"
 	"log"
 	"time"
@@ -41,13 +38,9 @@ type voteResponse struct {
 	ResponseSent time.Time `json:"responseSent"`
 }
 
-//go:embed ca-certificates.crt
-var caCertificates []byte
-
 func NewVoter(url string, signingKey string) *Voter {
 	v := &Voter{
 		client: resty.New().
-			SetTLSClientConfig(getTLSClientConfig()).
 			SetCloseConnection(true).
 			SetBaseURL(url),
 		signingKey: []byte(signingKey),
@@ -173,18 +166,4 @@ func (v *Voter) sendVote() {
 
 func (v *Voter) log(format string, args ...any) {
 	log.Printf("[voter] "+format, args...)
-}
-
-func getTLSClientConfig() *tls.Config {
-	pool := x509.NewCertPool()
-
-	ok := pool.AppendCertsFromPEM(caCertificates)
-	if !ok {
-		panic("invalid ca-certificates")
-	}
-
-	return &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		RootCAs:    pool,
-	}
 }
