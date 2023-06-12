@@ -25,16 +25,18 @@ type Candidate struct {
 	resp       voteResponse
 	c          chan<- CandidateState
 
-	votes    map[string]*vote
-	state    CandidateState
-	firstYes time.Time
-	mu       sync.RWMutex
+	votes      map[string]*vote
+	state      CandidateState
+	forceState CandidateState
+	firstYes   time.Time
+	mu         sync.RWMutex
 }
 
 type CandidateState int
 
 const (
-	StateLeader CandidateState = iota
+	StateUndefined CandidateState = iota
+	StateLeader
 	StateNotLeader
 
 	maxVotePeriod  = 5 * time.Second
@@ -60,12 +62,18 @@ func NewCandidate(numVoters int, signingKey string) *Candidate {
 		signingKey: []byte(signingKey),
 		votes:      map[string]*vote{},
 		state:      StateNotLeader,
+		forceState: getForceState(),
 		stop:       make(chan bool),
 		done:       make(chan bool),
 		c:          change,
 		resp: voteResponse{
 			CandidateID: uniuri.New(),
 		},
+	}
+
+	if c.forceState != StateUndefined {
+		log.Printf("[elect] state forced to %s", StateName[c.forceState])
+		c.state = c.forceState
 	}
 
 	go c.loop()
@@ -210,30 +218,9 @@ func (c *Candidate) elect(v *vote) {
 		c.c <- state
 	}()
 
-	switch *electForceState {
-	case "":
-		// Not forced
-
-	case "leader":
-		log.Printf("[elect] state forced to leader")
-
-		state = StateLeader
-
+	if c.forceState != StateUndefined {
+		c.state = c.forceState
 		return
-
-	case "not-leader":
-		fallthrough
-	case "not_leader":
-		fallthrough
-	case "notleader":
-		log.Printf("[elect] state forced to not leader")
-
-		state = StateNotLeader
-
-		return
-
-	default:
-		panic("invalid --elect-force-state")
 	}
 
 	if v != nil {
@@ -297,5 +284,25 @@ func (c *Candidate) loop() {
 		case <-t.C:
 			c.elect(nil)
 		}
+	}
+}
+
+func getForceState() CandidateState {
+	switch *electForceState {
+	case "":
+		return StateUndefined
+
+	case "leader":
+		return StateLeader
+
+	case "not-leader":
+		fallthrough
+	case "not_leader":
+		fallthrough
+	case "notleader":
+		return StateNotLeader
+
+	default:
+		panic("invalid --elect-force-state")
 	}
 }
