@@ -118,7 +118,7 @@ func (v *Voter) sendVote() {
 		SetBody(js).
 		Post("")
 	if err != nil {
-		log.Printf("vote response: %s", err)
+		log.Printf("error: %s", err)
 
 		v.vote.NumPollsSinceChange = 0
 
@@ -126,7 +126,7 @@ func (v *Voter) sendVote() {
 	}
 
 	if resp.IsError() {
-		v.log("response: [%d] %s\n%s", resp.StatusCode(), resp.Status(), resp.String())
+		v.log("response: %d", resp.StatusCode())
 
 		v.vote.NumPollsSinceChange = 0
 

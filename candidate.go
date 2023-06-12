@@ -72,7 +72,7 @@ func NewCandidate(numVoters int, signingKey string) *Candidate {
 	}
 
 	if c.forceState != StateUndefined {
-		log.Printf("[elect] state forced to %s", StateName[c.forceState])
+		c.log("state forced to %s", StateName[c.forceState])
 		c.state = c.forceState
 	}
 
@@ -205,8 +205,8 @@ func (c *Candidate) elect(v *vote) {
 			return
 		}
 
-		log.Printf(
-			"[elect] transitioning %s -> %s (no=%d yes=%d min_yes=%d)",
+		c.log(
+			"transitioning %s -> %s (no=%d yes=%d min_yes=%d)",
 			StateName[c.state],
 			StateName[state],
 			no,
@@ -285,6 +285,10 @@ func (c *Candidate) loop() {
 			c.elect(nil)
 		}
 	}
+}
+
+func (c *Candidate) log(format string, args ...any) {
+	log.Printf("[candidate] "+format, args...)
 }
 
 func getForceState() CandidateState {
