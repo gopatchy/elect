@@ -206,7 +206,7 @@ func (c *Candidate) elect(v *vote) {
 		}
 
 		c.log(
-			"transitioning %s -> %s (no=%d yes=%d min_yes=%d)",
+			"transitioning %s -> %s (no=%d yes=%d max_no=0 min_yes=%d)",
 			StateName[c.state],
 			StateName[state],
 			no,
