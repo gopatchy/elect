@@ -3,6 +3,7 @@ package elect
 import (
 	"crypto/hmac"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -47,6 +48,8 @@ var StateName = map[CandidateState]string{
 	StateLeader:    "LEADER",
 	StateNotLeader: "NOT_LEADER",
 }
+
+var electForceState = flag.String("elect-force-state", "", "'', 'leader', 'notleader'")
 
 func NewCandidate(numVoters int, signingKey string) *Candidate {
 	change := make(chan CandidateState, 100)
@@ -206,6 +209,32 @@ func (c *Candidate) elect(v *vote) {
 		c.state = state
 		c.c <- state
 	}()
+
+	switch *electForceState {
+	case "":
+		// Not forced
+
+	case "leader":
+		log.Printf("[elect] state forced to leader")
+
+		state = StateLeader
+
+		return
+
+	case "not-leader":
+		fallthrough
+	case "not_leader":
+		fallthrough
+	case "notleader":
+		log.Printf("[elect] state forced to not leader")
+
+		state = StateNotLeader
+
+		return
+
+	default:
+		panic("invalid --elect-force-state")
+	}
 
 	if v != nil {
 		v.received = time.Now()
