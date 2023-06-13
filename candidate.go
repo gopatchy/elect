@@ -215,7 +215,11 @@ func (c *Candidate) elect(v *vote) {
 		)
 
 		c.state = state
-		c.c <- state
+
+		select {
+		case c.c <- state:
+		default:
+		}
 	}()
 
 	if c.forceState != StateUndefined {

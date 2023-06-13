@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gopatchy/elect"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,6 +38,10 @@ func TestThree(t *testing.T) {
 
 		w.Wait()
 	}
+
+	require.Equal(t, <-ts.Candidate(0).C, elect.StateLeader)
+	require.Empty(t, ts.Candidate(1).C)
+	require.Empty(t, ts.Candidate(2).C)
 }
 
 func TestFailover(t *testing.T) {
@@ -59,12 +64,20 @@ func TestFailover(t *testing.T) {
 		w.Wait()
 	}
 
+	require.Equal(t, <-ts.Candidate(0).C, elect.StateLeader)
+	require.Empty(t, ts.Candidate(1).C)
+	require.Empty(t, ts.Candidate(2).C)
+
 	ts.SetServer(1)
 
 	require.Eventually(t, func() bool { return !ts.Candidate(0).IsLeader() }, 15*time.Second, 100*time.Millisecond)
 	// New candidate must not get leadership before old candidate loses it
 	require.False(t, ts.Candidate(1).IsLeader())
 	require.False(t, ts.Candidate(2).IsLeader())
+
+	require.Equal(t, <-ts.Candidate(0).C, elect.StateNotLeader)
+	require.Empty(t, ts.Candidate(1).C)
+	require.Empty(t, ts.Candidate(2).C)
 
 	{
 		w := NewWaiter()
@@ -75,6 +88,10 @@ func TestFailover(t *testing.T) {
 
 		w.Wait()
 	}
+
+	require.Equal(t, <-ts.Candidate(1).C, elect.StateLeader)
+	require.Empty(t, ts.Candidate(0).C)
+	require.Empty(t, ts.Candidate(2).C)
 }
 
 func TestPartialVotes(t *testing.T) {
@@ -98,6 +115,10 @@ func TestPartialVotes(t *testing.T) {
 
 		w.Wait()
 	}
+
+	require.Equal(t, <-ts.Candidate(0).C, elect.StateLeader)
+	require.Empty(t, ts.Candidate(1).C)
+	require.Empty(t, ts.Candidate(2).C)
 }
 
 func TestSplitVotes(t *testing.T) {
@@ -122,4 +143,8 @@ func TestSplitVotes(t *testing.T) {
 
 		w.Wait()
 	}
+
+	require.Equal(t, <-ts.Candidate(1).C, elect.StateLeader)
+	require.Empty(t, ts.Candidate(0).C)
+	require.Empty(t, ts.Candidate(2).C)
 }
