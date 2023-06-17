@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/dchest/uniuri v1.2.0
 	github.com/go-resty/resty/v2 v2.7.0
-	github.com/gopatchy/event v0.0.0-20230617212132-152b30a10ad7
+	github.com/gopatchy/event v0.0.0-20230617221934-85df8edcde92
 	github.com/gopatchy/proxy v0.0.0-20230608062432-7adc14d65656
 	github.com/samber/lo v1.38.1
 	github.com/stretchr/testify v1.8.4
