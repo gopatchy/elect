@@ -16,6 +16,8 @@ import (
 	"github.com/samber/lo"
 )
 
+// TODO: Add event hook to export isLeader
+
 type Candidate struct {
 	C <-chan CandidateState
 
