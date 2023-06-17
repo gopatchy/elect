@@ -1,6 +1,7 @@
 package elect
 
 import (
+	"context"
 	"crypto/hmac"
 	"encoding/json"
 	"log"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/dchest/uniuri"
 	"github.com/go-resty/resty/v2"
+	"github.com/gopatchy/event"
 	"github.com/samber/lo"
 )
 
@@ -38,7 +40,7 @@ type voteResponse struct {
 	ResponseSent time.Time `json:"responseSent"`
 }
 
-func NewVoter(url string, signingKey string) *Voter {
+func NewVoter(ctx context.Context, ec *event.Client, url string, signingKey string) *Voter {
 	v := &Voter{
 		client: resty.New().
 			SetCloseConnection(true).
@@ -52,7 +54,7 @@ func NewVoter(url string, signingKey string) *Voter {
 		period: maxVotePeriod,
 	}
 
-	go v.loop()
+	go v.loop(ctx, ec)
 
 	return v
 }
@@ -67,17 +69,17 @@ func (v *Voter) Stop() {
 	v.update = nil
 }
 
-func (v *Voter) loop() {
+func (v *Voter) loop(ctx context.Context, ec *event.Client) {
 	defer close(v.done)
 
 	for {
-		if !v.poll() {
+		if !v.poll(ctx, ec) {
 			break
 		}
 	}
 }
 
-func (v *Voter) poll() bool {
+func (v *Voter) poll(ctx context.Context, ec *event.Client) bool {
 	t := time.NewTimer(RandDurationN(v.period))
 	defer t.Stop()
 
@@ -90,10 +92,10 @@ func (v *Voter) poll() bool {
 
 	select {
 	case <-t.C:
-		v.sendVote()
+		v.sendVote(ctx, ec)
 
 	case <-t2.C:
-		v.sendVote()
+		v.sendVote(ctx, ec)
 
 	case period, ok := <-v.update:
 		if !ok {
@@ -106,7 +108,7 @@ func (v *Voter) poll() bool {
 	return true
 }
 
-func (v *Voter) sendVote() {
+func (v *Voter) sendVote(ctx context.Context, ec *event.Client) {
 	v.vote.VoteSent = time.Now().UTC()
 
 	js := lo.Must(json.Marshal(v.vote))
@@ -126,7 +128,10 @@ func (v *Voter) sendVote() {
 	}
 
 	if resp.IsError() {
-		v.log("response: %d", resp.StatusCode())
+		v.log(ctx, ec,
+			"event", "error",
+			"response", resp.StatusCode(),
+		)
 
 		v.vote.NumPollsSinceChange = 0
 
@@ -135,12 +140,20 @@ func (v *Voter) sendVote() {
 
 	sig := resp.Header().Get("Signature")
 	if sig == "" {
-		v.log("missing Signature response header")
+		v.log(ctx, ec,
+			"event", "error",
+			"error", "missing Signature response header",
+		)
+
 		return
 	}
 
 	if !hmac.Equal([]byte(sig), []byte(mac(resp.Body(), v.signingKey))) {
-		v.log("invalid Signature response header")
+		v.log(ctx, ec,
+			"event", "error",
+			"error", "invalid Signature response header",
+		)
+
 		return
 	}
 
@@ -148,12 +161,19 @@ func (v *Voter) sendVote() {
 
 	err = json.Unmarshal(resp.Body(), vr)
 	if err != nil {
-		v.log("invalid response: %s", resp.String())
+		v.log(ctx, ec,
+			"event", "error",
+			"error", err,
+		)
+
 		return
 	}
 
 	if time.Since(vr.ResponseSent).Abs() > 15*time.Second {
-		v.log("excessive time difference (%.1f seconds); delay, replay, or clock skew", time.Since(vr.ResponseSent).Seconds())
+		v.log(ctx, ec,
+			"event", "error",
+			"error", "excessive time difference",
+		)
 	}
 
 	if vr.CandidateID == v.vote.LastSeenCandidateID {
@@ -164,6 +184,9 @@ func (v *Voter) sendVote() {
 	}
 }
 
-func (v *Voter) log(format string, args ...any) {
-	log.Printf("[voter] "+format, args...)
+func (v *Voter) log(ctx context.Context, ec *event.Client, vals ...any) {
+	ec.Log(ctx, append([]any{
+		"library", "elect",
+		"subsystem", "voter",
+	}, vals...)...)
 }

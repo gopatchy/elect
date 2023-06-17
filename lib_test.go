@@ -1,6 +1,7 @@
 package elect_test
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/dchest/uniuri"
 	"github.com/gopatchy/elect"
+	"github.com/gopatchy/event"
 	"github.com/gopatchy/proxy"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
@@ -60,6 +62,11 @@ func (ts *TestServer) Addr() *net.TCPAddr {
 }
 
 func NewTestSystem(t *testing.T, numCandidates, numVoters int) *TestSystem {
+	ctx := context.Background()
+
+	ec := event.New()
+	defer ec.Close()
+
 	ts := &TestSystem{
 		signingKey: uniuri.New(),
 	}
@@ -70,7 +77,7 @@ func NewTestSystem(t *testing.T, numCandidates, numVoters int) *TestSystem {
 
 	for i := 0; i < numVoters; i++ {
 		ts.proxies = append(ts.proxies, proxy.NewProxy(t, ts.Server(0).Addr()))
-		ts.voters = append(ts.voters, elect.NewVoter(ts.Proxy(i).HTTP(), ts.signingKey))
+		ts.voters = append(ts.voters, elect.NewVoter(ctx, ec, ts.Proxy(i).HTTP(), ts.signingKey))
 	}
 
 	return ts
