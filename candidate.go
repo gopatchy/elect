@@ -223,7 +223,7 @@ func (c *Candidate) elect(v *vote) {
 	}()
 
 	if c.forceState != StateUndefined {
-		c.state = c.forceState
+		state = c.forceState
 		return
 	}
 
