@@ -33,9 +33,9 @@ type Waiter struct {
 	chans []<-chan bool
 }
 
-func NewTestServer(t *testing.T, numVoters int, signingKey string) *TestServer {
+func NewTestServer(ctx context.Context, t *testing.T, ec *event.Client, numVoters int, signingKey string) *TestServer {
 	ts := &TestServer{
-		Candidate: elect.NewCandidate(numVoters, signingKey),
+		Candidate: elect.NewCandidate(ctx, ec, numVoters, signingKey),
 		listener:  lo.Must(net.ListenTCP("tcp", nil)),
 	}
 
@@ -72,7 +72,7 @@ func NewTestSystem(t *testing.T, numCandidates, numVoters int) *TestSystem {
 	}
 
 	for i := 0; i < numCandidates; i++ {
-		ts.servers = append(ts.servers, NewTestServer(t, numVoters, ts.signingKey))
+		ts.servers = append(ts.servers, NewTestServer(ctx, t, ec, numVoters, ts.signingKey))
 	}
 
 	for i := 0; i < numVoters; i++ {
