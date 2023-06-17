@@ -289,6 +289,16 @@ func (c *Candidate) loop(ctx context.Context, ec *event.Client) {
 	defer t.Stop()
 	defer close(c.done)
 
+	defer func() {
+		c.log(ctx, ec,
+			"event", "stop",
+		)
+	}()
+
+	c.log(ctx, ec,
+		"event", "start",
+	)
+
 	for {
 		select {
 		case <-c.stop:

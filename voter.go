@@ -72,6 +72,16 @@ func (v *Voter) Stop() {
 func (v *Voter) loop(ctx context.Context, ec *event.Client) {
 	defer close(v.done)
 
+	defer func() {
+		v.log(ctx, ec,
+			"event", "stop",
+		)
+	}()
+
+	v.log(ctx, ec,
+		"event", "start",
+	)
+
 	for {
 		if !v.poll(ctx, ec) {
 			break
