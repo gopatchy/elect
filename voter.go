@@ -198,5 +198,6 @@ func (v *Voter) log(ctx context.Context, ec *event.Client, vals ...any) {
 	ec.Log(ctx, append([]any{
 		"library", "elect",
 		"subsystem", "voter",
+		"voterID", v.vote.VoterID,
 	}, vals...)...)
 }

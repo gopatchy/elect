@@ -250,9 +250,18 @@ func (c *Candidate) elect(ctx context.Context, ec *event.Client, v *vote) {
 			continue
 		}
 
-		if vote.LastSeenCandidateID != c.resp.CandidateID {
+		if vote.LastSeenCandidateID != "" && vote.LastSeenCandidateID != c.resp.CandidateID {
 			// Hard no; voted for someone else
 			no++
+
+			if c.state == StateLeader {
+				c.log(ctx, ec,
+					"event", "noVoteWhileLeader",
+					"voterID", vote.VoterID,
+					"otherCandidateID", vote.LastSeenCandidateID,
+					"numPollsSincechange", vote.NumPollsSinceChange,
+				)
+			}
 		}
 
 		if vote.NumPollsSinceChange < 10 {
@@ -316,6 +325,7 @@ func (c *Candidate) log(ctx context.Context, ec *event.Client, vals ...any) {
 	ec.Log(ctx, append([]any{
 		"library", "elect",
 		"subsystem", "candidate",
+		"candidateID", c.resp.CandidateID,
 	}, vals...)...)
 }
 
