@@ -215,6 +215,7 @@ func (c *Candidate) elect(ctx context.Context, ec *event.Client, v *vote) {
 			return
 		}
 
+		// TODO: goCamelCase event names (throughout)
 		c.log(ctx, ec,
 			"event", "transitioning state",
 			"oldState", StateName[c.state],
